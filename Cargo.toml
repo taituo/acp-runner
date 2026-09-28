@@ -1,0 +1,94 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/acp-runner-core",
+    "crates/acp-runner-acp",
+    "crates/acp-runner-workspace",
+    "crates/acp-runner-drivers",
+    "crates/acp-runner-ipc",
+    "crates/acp-runner-client",
+    "crates/acp-runner-journal",
+    "crates/acp-runner-engine",
+    "crates/acp-runner-k8s",
+    "bins/acp-runner-controller",
+    "bins/runnerd",
+    "bins/agentd",
+    "bins/acp-runnerctl",
+    "bins/acp-egress-proxy",
+    "bins/fake-acp-agent",
+    "bins/acp-openai-shim",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+license = "Apache-2.0"
+publish = false
+
+[workspace.dependencies]
+# internal
+acp-runner-core = { path = "crates/acp-runner-core" }
+acp-runner-acp = { path = "crates/acp-runner-acp" }
+acp-runner-workspace = { path = "crates/acp-runner-workspace" }
+acp-runner-drivers = { path = "crates/acp-runner-drivers" }
+acp-runner-ipc = { path = "crates/acp-runner-ipc" }
+acp-runner-client = { path = "crates/acp-runner-client" }
+acp-runner-journal = { path = "crates/acp-runner-journal" }
+acp-runner-engine = { path = "crates/acp-runner-engine" }
+acp-runner-k8s = { path = "crates/acp-runner-k8s" }
+
+# async / runtime
+tokio = { version = "1.53", features = ["macros", "rt-multi-thread", "process", "io-util", "io-std", "time", "signal", "sync", "fs", "net"] }
+futures = "0.3"
+tokio-tungstenite = { version = "0.29", default-features = false, features = ["handshake"] }
+async-trait = "0.1"
+
+# serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+
+# errors / logging
+thiserror = "2"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
+
+# misc
+uuid = { version = "1.26", features = ["v4", "v7", "serde"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde", "std"] }
+sha2 = "0.10"
+hex = "0.4"
+base64 = "0.22"
+regex = "1"
+clap = { version = "4.6", features = ["derive", "env"] }
+nix = { version = "0.31", features = ["signal", "process", "user", "fs"] }
+tempfile = "3"
+tar = { version = "0.4", default-features = false }
+flate2 = "1"
+rpassword = "7"
+
+# kubernetes
+kube = { version = "4.2", default-features = false, features = ["client", "runtime", "derive", "rustls-tls", "ring", "ws"] }
+k8s-openapi = { version = "0.28", default-features = false, features = ["std", "v1_33", "schemars"] }
+schemars = "1"
+
+# storage
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "postgres", "uuid", "chrono", "json", "migrate", "derive", "macros"] }
+
+# http
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "query"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "http2"] }
+prometheus-client = "0.25"
+
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+opt-level = 1
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+strip = "symbols"

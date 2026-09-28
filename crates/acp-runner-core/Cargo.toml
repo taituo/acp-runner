@@ -1,0 +1,20 @@
+[package]
+name = "acp-runner-core"
+description = "Provider-neutral domain model for acp-runner: runs, attempts, events, retry/fallback planning, resume capsules, credential specs, redaction."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+nix.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+sha2.workspace = true
+hex.workspace = true
+base64.workspace = true
+regex.workspace = true

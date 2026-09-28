@@ -1,0 +1,12 @@
+{
+  "name": "acp-runner-runner-clis",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Pinned coding-agent CLIs and adapters baked into the acp-runner runner image. Versions must match drivers.lock.yaml (checked by tests).",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@agentclientprotocol/codex-acp": "1.13.1",
+    "@openai/codex": "0.156.1",
+    "@anthropic-ai/claude-code": "2.1.274"
+  }
+}

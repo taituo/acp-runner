@@ -1,0 +1,40 @@
+[package]
+name = "acp-openai-shim"
+description = "OpenAI Responses-compatible shim over ACP: one more ACP client of an AgentEnvironment gateway (not part of the core)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "acp-openai-shim"
+path = "src/main.rs"
+
+[dependencies]
+acp-runner-client.workspace = true
+tokio.workspace = true
+axum.workspace = true
+async-trait.workspace = true
+futures.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+clap.workspace = true
+
+[dev-dependencies]
+acp-runner-core.workspace = true
+acp-runner-engine.workspace = true
+acp-runner-journal.workspace = true
+reqwest.workspace = true
+# Shared rustls crypto provider (ring): reqwest uses rustls-no-provider, so
+# even plain-HTTP Client::new() needs an installed provider in this test graph.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+tempfile.workspace = true

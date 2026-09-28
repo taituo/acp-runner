@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: acp-runner-controller
+  namespace: acp-runner-system
+  labels: {app.kubernetes.io/name: acp-runner-controller, app.kubernetes.io/part-of: acp-runner}
+spec:
+  # >1 replica is safe (PostgreSQL advisory locks + attempt supervision leases); no leader election.
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: acp-runner-controller}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: acp-runner-controller, app.kubernetes.io/part-of: acp-runner}
+    spec:
+      serviceAccountName: acp-runner-controller
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: controller
+          image: acp-runner/controller:dev
+          imagePullPolicy: IfNotPresent
+          args: ["run"]
+          env:
+            - name: DATABASE_URL
+              valueFrom: {secretKeyRef: {name: acp-runner-db, key: url}}
+            - name: ACP_RUNNER_INGEST_URL
+              value: http://acp-runner-ingest.acp-runner-system.svc:8081
+            - name: ACP_RUNNER_WATCH_NAMESPACE
+              value: acp-agents
+            - name: ACP_RUNNER_CREDENTIAL_NAMESPACE
+              value: acp-runner-system
+            - name: ACP_RUNNER_BACKEND
+              value: pod            # or agent-sandbox (kubernetes-sigs/agent-sandbox v1beta1)
+            # V1a: route the Codex token refresh through the allowlisting egress
+            # proxy (deploy/egress-proxy/proxy.yaml must be applied first). The
+            # egress policy blocks direct internet, so without this every
+            # provider refresh fails. CNI FQDN setups: point this at your
+            # auth.openai.com:443 rule instead, or unset to refresh directly.
+            - name: ACP_RUNNER_CODEX_REFRESH_PROXY
+              value: http://acp-egress-proxy.acp-egress.svc:3128
+            - name: POD_NAME
+              valueFrom: {fieldRef: {fieldPath: metadata.name}}
+            # V10b: shared ticket master key (ticket-key-secret.yaml). All
+            # replicas mount the same key so a replica can mint connection
+            # tickets for environments another replica created. Rotation:
+            # set ACP_RUNNER_TICKET_KEY_PREV_FILE + mount the -prev secret.
+            - name: ACP_RUNNER_TICKET_KEY_FILE
+              value: /run/acp-runner/ticket-key/key
+            - name: RUST_LOG
+              value: info,kube=warn,sqlx=warn
+          volumeMounts:
+            - name: ticket-key
+              mountPath: /run/acp-runner/ticket-key
+              readOnly: true
+          ports:
+            - {name: metrics, containerPort: 8080}
+            - {name: ingest, containerPort: 8081}
+          readinessProbe:
+            httpGet: {path: /readyz, port: metrics}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /healthz, port: metrics}
+            periodSeconds: 20
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
+      volumes:
+        - name: ticket-key
+          secret:
+            secretName: acp-runner-ticket-key
+            defaultMode: 0o400
+            optional: true # unset until ticket-key-secret.yaml is applied with real key material
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: acp-runner-ingest
+  namespace: acp-runner-system
+  labels: {app.kubernetes.io/name: acp-runner-controller}
+spec:
+  selector: {app.kubernetes.io/name: acp-runner-controller}
+  ports:
+    - {name: ingest, port: 8081, targetPort: ingest}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: acp-runner-metrics
+  namespace: acp-runner-system
+  labels: {app.kubernetes.io/name: acp-runner-controller}
+spec:
+  selector: {app.kubernetes.io/name: acp-runner-controller}
+  ports:
+    - {name: metrics, port: 8080, targetPort: metrics}

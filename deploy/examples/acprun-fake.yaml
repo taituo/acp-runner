@@ -1,0 +1,16 @@
+# A fake run against the fixture repository baked into the runner image.
+# The revision is the deterministic SHA printed by scripts/build-fixture-repo.sh.
+apiVersion: acp-runner.dev/v1alpha1
+kind: ACPRun
+metadata:
+  name: fake-fix-1
+  namespace: acp-agents
+spec:
+  taskId: demo-fix-add
+  runnerClassName: fake-fix
+  repository:
+    url: file:///opt/acp-runner/fixtures/buggy-repo.git
+    revision: dab04cf7a90ba80a2e188cd4864c71abf7b39a74
+  prompt:
+    text: Fix add.sh so that `sh test.sh` prints PASS. Only modify add.sh.
+  output: {type: Patch, requireChanges: true}

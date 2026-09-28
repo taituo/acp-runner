@@ -1,0 +1,18 @@
+# Namespace for ACPRuns and their attempt sandboxes.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: acp-agents
+  labels:
+    app.kubernetes.io/part-of: acp-runner
+    acp-runner.dev/agents: "true"
+    # Agent pods satisfy the "restricted" Pod Security Standard.
+    pod-security.kubernetes.io/enforce: restricted
+---
+# Identity of agent pods: no token is mounted and no RBAC binding exists for it.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: acp-runner-agent
+  namespace: acp-agents
+automountServiceAccountToken: false

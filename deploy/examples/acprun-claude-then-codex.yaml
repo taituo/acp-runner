@@ -1,0 +1,24 @@
+# The canonical retry/fallback shape:
+#   ACPRun
+#     Attempt 1: claude
+#     Attempt 2: claude
+#     Attempt 3: codex   (new session, provider-neutral resume capsule)
+apiVersion: acp-runner.dev/v1alpha1
+kind: ACPRun
+metadata:
+  name: claude-then-codex-1
+  namespace: acp-agents
+spec:
+  taskId: fix-add-fallback
+  runnerClassName: claude-default
+  fallbackRunnerClassNames: [codex-default]
+  retry:
+    maxAttemptsPerRunner: 2
+  resume:
+    applyPreviousPatch: false        # true: start the fallback from the last partial patch
+    includeTranscript: true
+  repository:
+    url: file:///opt/acp-runner/fixtures/buggy-repo.git
+    revision: dab04cf7a90ba80a2e188cd4864c71abf7b39a74
+  prompt:
+    text: Fix add.sh so that `sh test.sh` prints PASS. Only modify add.sh.

@@ -1,0 +1,25 @@
+[package]
+name = "agentd"
+description = "Untrusted agent executor: runs exactly one provider CLI (Codex, Claude Code, fake) for one attempt and reports normalized events to runnerd over a local Unix socket."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "agentd"
+path = "src/main.rs"
+
+[dependencies]
+acp-runner-core.workspace = true
+acp-runner-ipc.workspace = true
+acp-runner-drivers.workspace = true
+tokio.workspace = true
+clap.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+nix.workspace = true
+anyhow.workspace = true

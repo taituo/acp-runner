@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: acp-runner-system
+  labels:
+    app.kubernetes.io/part-of: acp-runner
+    pod-security.kubernetes.io/enforce: restricted

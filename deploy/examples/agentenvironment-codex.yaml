@@ -1,0 +1,43 @@
+# A multi-turn agent environment (the general primitive). The provider resolves the harness,
+# checks out the source at an exact revision, materializes configs/agents/skills, leases the
+# credential for the environment's lifetime, and exposes authenticated raw ACP. Connection
+# tickets are issued by the provider (`connect`), never stored in status.
+apiVersion: acp-runner.dev/v1alpha1
+kind: AgentEnvironment
+metadata:
+  name: codex-env-1
+  namespace: acp-agents
+spec:
+  externalRef: task-1234
+  harness:
+    name: codex
+    version: "0.156.1"
+    config: {mode: agent-full-access}
+  workspace:
+    source:
+      type: git
+      url: https://github.com/example/repo.git
+      revision: 0123456789abcdef0123456789abcdef01234567
+    workdir: services/api
+    sizeLimit: 2Gi
+    maxPatchBytes: 8388608
+  credentials:
+    profile: personal-1          # exclusive lease for the environment's lifetime
+  skills: [rust-backend]
+  configs: [company-agents-md]   # AGENTS.md placed in the workdir, excluded from the artifact
+  bootstrap:
+    exec:
+      - command: npm             # execve in the agent container, never in runnerd
+        args: [ci, --ignore-scripts]
+        timeoutSeconds: 600
+  # credentialed environments must use the egress proxy (the provider rejects otherwise)
+  egress:
+    mode: proxy
+    httpsProxy: http://acp-egress-proxy.acp-egress.svc:3128
+    noProxy: acp-runner-ingest.acp-runner-system.svc,localhost,127.0.0.1
+  timeouts:
+    hardSeconds: 7200
+    noProgressSeconds: 600
+  lifetime:
+    idleSeconds: 1800
+  # runtimeClassName: gvisor

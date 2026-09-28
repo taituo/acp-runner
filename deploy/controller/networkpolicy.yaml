@@ -1,0 +1,79 @@
+# Controller namespace: the ingest API accepts connections only from agent pods; metrics
+# only from inside the namespace (adjust for your Prometheus); PostgreSQL only from the
+# controller.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: acp-runner-controller-ingress
+  namespace: acp-runner-system
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: acp-runner-controller}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {acp-runner.dev/agents: "true"}
+          podSelector:
+            matchLabels: {app.kubernetes.io/name: acp-runner-agent}
+      ports:
+        - {protocol: TCP, port: 8081}
+    - from:
+        - podSelector: {}
+      ports:
+        - {protocol: TCP, port: 8080}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: acp-runner-postgres-ingress
+  namespace: acp-runner-system
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: acp-runner-postgres}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {app.kubernetes.io/name: acp-runner-controller}
+      ports:
+        - {protocol: TCP, port: 5432}
+---
+# Controller egress (V1a): the controller reaches only DNS, PostgreSQL, the
+# Kubernetes API (RBAC/watch, in-cluster), and the allowlisting egress proxy
+# (TCP 3128), through which the Codex token refresh is routed
+# (ACP_RUNNER_CODEX_REFRESH_PROXY=http://acp-egress-proxy.acp-egress:3128).
+# There is deliberately NO 0.0.0.0/0 rule here: standard Kubernetes
+# NetworkPolicy has no FQDN selector, so "auth.openai.com-only" is enforced at
+# L7 by the proxy allowlist plus the controller's pinned endpoint validation
+# (codex_refresh::check_trusted_endpoint), not by this policy. Clusters whose
+# CNI offers FQDN egress rules should add an auth.openai.com:443 rule there
+# and may then drop the proxy hop.
+#
+# NOTE: this policy newly restricts controller egress (previously allow-all).
+# Add your cluster's kube-apiserver destination below or the controller cannot
+# watch ACPRun objects. Example for a 10.43.0.1 apiserver (k3s default):
+#     - to:
+#         - ipBlock: {cidr: 10.43.0.1/32}
+#       ports: [{protocol: TCP, port: 443}]
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: acp-runner-controller-egress
+  namespace: acp-runner-system
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: acp-runner-controller}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+          podSelector: {matchLabels: {k8s-app: kube-dns}}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+    - to:
+        - podSelector: {matchLabels: {app.kubernetes.io/name: acp-runner-postgres}}
+      ports: [{protocol: TCP, port: 5432}]
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: acp-egress}}
+          podSelector: {matchLabels: {app.kubernetes.io/name: acp-egress-proxy}}
+      ports: [{protocol: TCP, port: 3128}]

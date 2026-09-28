@@ -1,0 +1,15 @@
+[package]
+name = "fake-acp-agent"
+description = "Deterministic fake coding agent speaking ACP v1 (and a Claude stream-json emulation) for CI and compatibility tests."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "fake-acp-agent"
+path = "src/main.rs"
+
+[dependencies]
+serde_json.workspace = true

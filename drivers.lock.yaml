@@ -1,0 +1,94 @@
+# drivers.lock.yaml — machine-readable driver compatibility matrix.
+#
+# Source of truth for pinned versions is images/runner/package.json (+ package-lock.json);
+# `cargo test -p runnerd --test drivers_lock` fails if this file and the image pins diverge.
+# Upgrade flow: scripts/upgrade-cli.sh <driver> <version> (updates pins, marks the entry
+# `candidate`, builds a candidate image, runs the compatibility suite) — see README.
+#
+# status values:
+#   compatible                 full compatibility suite passed incl. opt-in live smoke test
+#   compatible-unauthenticated contract suite passed against the real CLI/adapter without
+#                              credentials (version, auth detection, ACP handshake, AuthRequired
+#                              path); live smoke test not yet recorded
+#   contract-verified-with-fake  flags verified against the pinned CLI's --help, stream contract
+#                              covered by the fake emulation; live smoke test not yet recorded
+#   candidate                  pins changed, suite not yet passed
+#   incompatible               suite failed; do not roll out
+schemaVersion: 1
+# Runtime contract (v2): every driver runs under agentd (untrusted container) and talks to
+# runnerd over the local IPC protocol v1 (acp-runner-ipc). A driver entry is only
+# "compatible" when its suites ran through that split.
+runtime:
+  wireVersion: 2
+  localIpcProtocol: 1
+image:
+  repository: acp-runner/runner      # replace with your registry path
+  tag: dev
+  digest: null                       # set by scripts/build-images.sh --push
+  base: docker.io/library/node:22-bookworm-slim
+drivers:
+  - driver: acp
+    protocol: acp/1
+    cli: null  # launch-provided: any stdio ACP CLI, no pinned binary (V9)
+    adapter: null
+    auth: launch-provided (none or the files provider)
+    status: candidate
+    verified:
+      date: "2026-09-27"
+      suites: [acp-conformance(fake-acp-agent)]
+      notes: >-
+        Generic driver (V9): AcpDriver with a mandatory launch `command`.
+    conformance:
+      cli: fake-acp-agent
+      measured: "2026-09-27"
+      suite: bins/runnerd/tests/acp_conformance.rs (default launch; live CLIs via ACP_CONFORMANCE_LAUNCH)
+      protocol: acp/1
+      model: launch-env-driven (FAKE_ACP_MODEL echoed in SessionStarted.model)
+      capabilities: {loadSession: false, promptCapabilities: {embeddedContext: true, image: false}}
+      cancelAcknowledged: true
+      permissionRequested: true
+      permissionDecision: allowed
+      toolCallsSeen: true
+      usageSeen: false
+      sessionLoadAdvertised: false
+      stdinCloseExited: true
+  - driver: fake
+    protocol: acp/1
+    cli: {package: fake-acp-agent, source: workspace, version: 0.1.0}
+    adapter: null
+    auth: none
+    status: compatible
+    verified:
+      date: "2026-09-26"
+      suites: [compat:fake-acp, security, ipc-trust, isolation(namespaces), engine-e2e, kube-e2e(envtest, two-container pod)]
+  - driver: codex
+    protocol: acp/1
+    cli: {package: "@openai/codex", version: 0.156.1}
+    adapter: {package: "@agentclientprotocol/codex-acp", version: 1.13.1}
+    auth: chatgpt-login ($CODEX_HOME/auth.json, exclusive lease, validated write-back)
+    status: compatible-unauthenticated
+    verified:
+      date: "2026-09-26"
+      suites: [compat:codex-noauth, compat:fake-codex, engine-e2e(claude->codex fallback, write-back)]
+      notes: >-
+        codex-acp --version, codex --version, `codex login status` classification, ACP v1
+        initialize and session/new -> -32000 AuthRequired verified against the real adapter
+        through agentd. Driver env/config.toml/probe/refresh+write-back path verified with the
+        fake Codex emulation. Live ChatGPT-login smoke test pending an enrolled profile
+        (ACP_COMPAT_TARGETS=codex).
+  - driver: claude
+    protocol: claude-stream-json
+    cli: {package: "@anthropic-ai/claude-code", version: 2.1.274}
+    adapter: null
+    auth: claude setup-token (CLAUDE_CODE_OAUTH_TOKEN, not refreshed, no write-back)
+    status: contract-verified-with-fake
+    verified:
+      date: "2026-09-26"
+      suites: [compat:fake-claude, engine-e2e(claude->codex fallback)]
+      notes: >-
+        Flags (-p, --input-format/--output-format stream-json, --verbose, --session-id,
+        --permission-mode, --permission-prompts, --setting-sources, --strict-mcp-config,
+        --no-session-persistence) and `claude auth status --json` verified against 2.1.274.
+        The setup-token is staged by runnerd as $HOME/.acp-credentials/oauth-token and moved
+        by agentd into CLAUDE_CODE_OAUTH_TOKEN of the claude process only.
+        Live subscription smoke test pending an enrolled profile (ACP_COMPAT_TARGETS=claude).

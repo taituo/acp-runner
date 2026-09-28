@@ -1,0 +1,71 @@
+# Local (dev-run) variant: fake agent from PATH (target/debug), fixture repo in /tmp.
+# Deterministic fake-agent runner classes (no credentials, no network).
+# The fake agent is baked into the runner image at fake-acp-agent.
+apiVersion: acp-runner.dev/v1alpha1
+kind: ACPRunnerClass
+metadata:
+  name: fake-fix
+  namespace: dev
+spec:
+  driver: fake
+  driverConfig:
+    command: fake-acp-agent
+    scenario: fix
+  image: acp-runner/runner:dev
+  imagePullPolicy: IfNotPresent
+  # runtimeClassName: gvisor        # opt-in where gVisor is installed
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: "1", memory: 1Gi}
+  workspace:
+    medium: Memory
+    sizeLimit: 256Mi
+    tmpSizeLimit: 64Mi
+    homeSizeLimit: 64Mi
+    maxPatchBytes: 1048576
+  timeouts:
+    hardSeconds: 300
+    noProgressSeconds: 60
+    graceSeconds: 5
+    heartbeatSeconds: 5
+    startupSeconds: 120
+---
+apiVersion: acp-runner.dev/v1alpha1
+kind: ACPRunnerClass
+metadata:
+  name: fake-crash
+  namespace: dev
+spec:
+  driver: fake
+  driverConfig: {command: fake-acp-agent, scenario: crash}
+  env: [{name: FAKE_ACP_SCENARIO, value: crash}]
+  image: acp-runner/runner:dev
+  imagePullPolicy: IfNotPresent
+  workspace: {sizeLimit: 256Mi, tmpSizeLimit: 64Mi, homeSizeLimit: 64Mi}
+  timeouts: {hardSeconds: 300, noProgressSeconds: 60, graceSeconds: 5, heartbeatSeconds: 5, startupSeconds: 120}
+---
+apiVersion: acp-runner.dev/v1alpha1
+kind: ACPRunnerClass
+metadata:
+  name: fake-flaky          # crashes on attempt 1, fixes on attempt 2
+  namespace: dev
+spec:
+  driver: fake
+  driverConfig: {command: fake-acp-agent, scenario: "crash-until:2"}
+  image: acp-runner/runner:dev
+  imagePullPolicy: IfNotPresent
+  workspace: {sizeLimit: 256Mi, tmpSizeLimit: 64Mi, homeSizeLimit: 64Mi}
+  timeouts: {hardSeconds: 300, noProgressSeconds: 60, graceSeconds: 5, heartbeatSeconds: 5, startupSeconds: 120}
+---
+apiVersion: acp-runner.dev/v1alpha1
+kind: ACPRunnerClass
+metadata:
+  name: fake-hang           # stops producing output -> NoProgressTimeout
+  namespace: dev
+spec:
+  driver: fake
+  driverConfig: {command: fake-acp-agent, scenario: hang}
+  image: acp-runner/runner:dev
+  imagePullPolicy: IfNotPresent
+  workspace: {sizeLimit: 256Mi, tmpSizeLimit: 64Mi, homeSizeLimit: 64Mi}
+  timeouts: {hardSeconds: 120, noProgressSeconds: 10, graceSeconds: 3, heartbeatSeconds: 5, startupSeconds: 120}

@@ -1,0 +1,27 @@
+[package]
+name = "acp-runner-k8s"
+description = "Kubernetes adapter: CRDs (ACPRunnerClass, ACPRun), Pod and Agent Sandbox backends, Secret-backed credential store."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+acp-runner-ipc.workspace = true
+acp-runner-core.workspace = true
+acp-runner-engine.workspace = true
+kube.workspace = true
+k8s-openapi.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+async-trait.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+chrono.workspace = true
+base64.workspace = true
+uuid.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+serde_yaml.workspace = true

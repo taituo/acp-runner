@@ -1,0 +1,37 @@
+[package]
+name = "acp-runnerctl"
+description = "Admin CLI: credential enrollment (auth enroll/list/inspect), run inspection (runs, events, artifacts)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "acp-runnerctl"
+path = "src/main.rs"
+
+[dependencies]
+acp-runner-core.workspace = true
+acp-runner-journal.workspace = true
+acp-runner-engine.workspace = true
+acp-runner-drivers.workspace = true
+acp-runner-k8s.workspace = true
+kube.workspace = true
+k8s-openapi.workspace = true
+tokio.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+anyhow.workspace = true
+rpassword.workspace = true
+tempfile.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+chrono.workspace = true
+base64.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

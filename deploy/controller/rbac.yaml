@@ -1,0 +1,98 @@
+# Controller RBAC (least privilege, namespaced):
+#   * acp-agents: ACPRun/ACPRunnerClass, attempt Pods and per-attempt Secrets
+#     (and agent-sandbox Sandboxes when --backend=agent-sandbox)
+#   * acp-runner-system: credential profile Secrets
+# For multiple agent namespaces, repeat the acp-agents Role/RoleBinding per namespace (or
+# use a ClusterRole) and unset ACP_RUNNER_WATCH_NAMESPACE.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: acp-runner-controller
+  namespace: acp-runner-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: acp-runner-controller
+  namespace: acp-agents
+rules:
+  - apiGroups: ["acp-runner.dev"]
+    resources: ["acpruns"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["acp-runner.dev"]
+    resources: ["acpruns/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["acp-runner.dev"]
+    resources: ["acpruns/finalizers"]
+    verbs: ["update"]
+  # V10a: AgentEnvironment objects, their status and finalizer, plus the
+  # per-environment gateway Service and ingress NetworkPolicy. Repeat this Role
+  # per caller namespace that hosts AgentEnvironment objects (same pattern as
+  # ACPRun classes above).
+  - apiGroups: ["acp-runner.dev"]
+    resources: ["agentenvironments"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["acp-runner.dev"]
+    resources: ["agentenvironments/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["acp-runner.dev"]
+    resources: ["agentenvironments/finalizers"]
+    verbs: ["update"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+  - apiGroups: ["acp-runner.dev"]
+    resources: ["acprunnerclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "delete"]
+  - apiGroups: ["agents.x-k8s.io"]
+    resources: ["sandboxes"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: acp-runner-controller
+  namespace: acp-agents
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: acp-runner-controller
+subjects:
+  - kind: ServiceAccount
+    name: acp-runner-controller
+    namespace: acp-runner-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: acp-runner-credentials
+  namespace: acp-runner-system
+rules:
+  # credential profile Secrets (acp-cred-<profile>); list/watch for profile sync,
+  # update for validated Codex auth.json write-back
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: acp-runner-credentials
+  namespace: acp-runner-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: acp-runner-credentials
+subjects:
+  - kind: ServiceAccount
+    name: acp-runner-controller
+    namespace: acp-runner-system

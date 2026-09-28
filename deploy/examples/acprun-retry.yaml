@@ -1,0 +1,15 @@
+# Attempt 1 crashes (ProcessCrashed), attempt 2 on the same class succeeds.
+apiVersion: acp-runner.dev/v1alpha1
+kind: ACPRun
+metadata:
+  name: fake-retry-1
+  namespace: acp-agents
+spec:
+  taskId: demo-retry
+  runnerClassName: fake-flaky
+  retry: {maxAttemptsPerRunner: 2}
+  repository:
+    url: file:///opt/acp-runner/fixtures/buggy-repo.git
+    revision: dab04cf7a90ba80a2e188cd4864c71abf7b39a74
+  prompt:
+    text: Fix add.sh so that `sh test.sh` prints PASS.

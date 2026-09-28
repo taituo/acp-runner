@@ -1,0 +1,42 @@
+# Anthropic Claude Code, native CLI in `-p` stream-json mode (no Agent-SDK adapter),
+# authenticated with a `claude setup-token` OAuth token (acp-runnerctl auth enroll claude max-1).
+# No ANTHROPIC_API_KEY anywhere; runs abort if Claude Code reports an API key source.
+apiVersion: acp-runner.dev/v1alpha1
+kind: ACPRunnerClass
+metadata:
+  name: claude-default
+  namespace: acp-agents
+spec:
+  driver: claude
+  driverConfig:
+    permissionMode: acceptEdits      # --permission-mode
+    allowedTools: [Bash, Read, Edit, Write, Glob, Grep, NotebookEdit, TodoWrite]
+    # model: sonnet
+    # settingSources: user           # default: repository .claude/settings.json hooks are NOT loaded
+    # disableNonessentialTraffic: true
+  image: acp-runner/runner:dev
+  imagePullPolicy: IfNotPresent
+  # runtimeClassName: gvisor
+  # Persistent subscription credentials require the allowlisting egress proxy (the controller
+  # rejects egress.mode: direct for credentialed classes). Deploy deploy/egress-proxy/ first.
+  egress:
+    mode: proxy
+    httpsProxy: http://acp-egress-proxy.acp-egress.svc:3128
+    noProxy: acp-runner-ingest.acp-runner-system.svc,localhost,127.0.0.1
+  credentials:
+    provider: claude
+    profiles: [max-1]
+  resources:
+    requests: {cpu: 500m, memory: 1Gi}
+    limits: {cpu: "2", memory: 4Gi}
+  workspace:
+    medium: Memory
+    sizeLimit: 2Gi
+    tmpSizeLimit: 512Mi
+    homeSizeLimit: 512Mi
+  timeouts:
+    hardSeconds: 3600
+    noProgressSeconds: 600
+    graceSeconds: 20
+    heartbeatSeconds: 10
+    startupSeconds: 300

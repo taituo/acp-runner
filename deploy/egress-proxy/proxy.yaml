@@ -1,0 +1,93 @@
+# Allowlisting egress proxy for agent pods running with egress.mode: proxy.
+#
+# acp-egress-proxy is an HTTP CONNECT proxy: it tunnels only TLS (no plaintext), refuses
+# IP-literal targets and any host that resolves to a private/link-local/CGNAT/metadata
+# address, and allows only the hostnames in the ConfigMap below. Verify the host list for the
+# CLI versions you ship (run the live smoke tests through the proxy and read its log) before
+# relying on it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: acp-egress
+  labels: {kubernetes.io/metadata.name: acp-egress}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: acp-egress-allowlist
+  namespace: acp-egress
+data:
+  allow.txt: |
+    # OpenAI Codex (ChatGPT login + inference) — EXAMPLE, verify
+    .chatgpt.com
+    .openai.com
+    # Anthropic Claude Code — EXAMPLE, verify
+    api.anthropic.com
+    .anthropic.com
+    # source hosting
+    github.com
+    codeload.github.com
+    .githubusercontent.com
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: acp-egress-proxy
+  namespace: acp-egress
+spec:
+  replicas: 2
+  selector: {matchLabels: {app.kubernetes.io/name: acp-egress-proxy}}
+  template:
+    metadata: {labels: {app.kubernetes.io/name: acp-egress-proxy}}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: proxy
+          image: acp-runner/controller:dev   # ships acp-egress-proxy; replace with your registry path
+          command: ["/usr/local/bin/acp-egress-proxy", "serve", "--listen", "0.0.0.0:3128", "--allow-file", "/etc/acp-egress/allow.txt"]
+          ports: [{containerPort: 3128}]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources: {requests: {cpu: "50m", memory: "64Mi"}, limits: {memory: "256Mi"}}
+          volumeMounts: [{name: allow, mountPath: /etc/acp-egress, readOnly: true}]
+      volumes: [{name: allow, configMap: {name: acp-egress-allowlist}}]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: acp-egress-proxy
+  namespace: acp-egress
+spec:
+  selector: {app.kubernetes.io/name: acp-egress-proxy}
+  ports: [{port: 3128, targetPort: 3128}]
+---
+# The proxy pods may reach public HTTPS (and DNS); agent pods and the controller
+# (V1a token refresh, allowlisted to auth.openai.com by this proxy) may reach them.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: acp-egress-proxy
+  namespace: acp-egress
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: acp-egress-proxy}}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {acp-runner.dev/agents: "true"}}
+          podSelector: {matchLabels: {app.kubernetes.io/name: acp-runner-agent}}
+      ports: [{protocol: TCP, port: 3128}]
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: acp-runner-system}}
+          podSelector: {matchLabels: {app.kubernetes.io/name: acp-runner-controller}}
+      ports: [{protocol: TCP, port: 3128}]
+  egress:
+    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}, podSelector: {matchLabels: {k8s-app: kube-dns}}}]
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, 169.254.0.0/16, 127.0.0.0/8]
+      ports: [{protocol: TCP, port: 443}]

@@ -1,0 +1,18 @@
+# Opt-in LIVE smoke test (uses the enrolled claude subscription login; small prompt).
+apiVersion: acp-runner.dev/v1alpha1
+kind: ACPRun
+metadata:
+  name: claude-smoke-1
+  namespace: acp-agents
+spec:
+  taskId: smoke-claude
+  runnerClassName: claude-default
+  repository:
+    url: file:///opt/acp-runner/fixtures/buggy-repo.git
+    revision: dab04cf7a90ba80a2e188cd4864c71abf7b39a74
+  prompt:
+    text: >-
+      The POSIX shell script add.sh should print the sum of its two arguments, but it has a
+      bug. Fix add.sh so that `sh test.sh` prints PASS. Only modify add.sh. Do not create commits.
+  output: {type: Patch, requireChanges: true, maxPatchBytes: 65536}
+  timeouts: {hardSeconds: 900, noProgressSeconds: 300}

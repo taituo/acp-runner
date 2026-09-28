@@ -1,0 +1,8 @@
+# KIND cluster for acp-runner development.
+# kind >= v0.33.0: the default CNI (kindnetd) enforces NetworkPolicy
+# (kube-network-policies), so deploy/agents/networkpolicy.yaml is effective.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: acp-runner
+nodes:
+  - role: control-plane

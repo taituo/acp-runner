@@ -1,0 +1,17 @@
+# Local (dev-run) variant: fake agent from PATH (target/debug), fixture repo in /tmp.
+# fake-crash twice (retry), then fallback to fake-fix: a NEW session with a resume capsule.
+apiVersion: acp-runner.dev/v1alpha1
+kind: ACPRun
+metadata:
+  name: fake-fallback-1
+  namespace: dev
+spec:
+  taskId: demo-fallback
+  runnerClassName: fake-crash
+  fallbackRunnerClassNames: [fake-fix]
+  retry: {maxAttemptsPerRunner: 2}
+  repository:
+    url: file:///tmp/acp-runner-fixtures/buggy-repo.git
+    revision: dab04cf7a90ba80a2e188cd4864c71abf7b39a74
+  prompt:
+    text: Fix add.sh so that `sh test.sh` prints PASS.

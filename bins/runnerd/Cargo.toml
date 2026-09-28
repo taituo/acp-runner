@@ -1,0 +1,50 @@
+[package]
+name = "runnerd"
+description = "Trusted in-sandbox attempt supervisor: prepares the workspace and synthetic HOME, launches agentd over a local socket, journals events, enforces timeouts, computes the patch."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "runnerd"
+path = "src/main.rs"
+
+[dependencies]
+acp-runner-core.workspace = true
+acp-runner-acp.workspace = true
+acp-runner-ipc.workspace = true
+acp-runner-workspace.workspace = true
+tokio.workspace = true
+async-trait.workspace = true
+reqwest.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+base64.workspace = true
+sha2.workspace = true
+hex.workspace = true
+nix.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tokio-tungstenite.workspace = true
+# Shared rustls crypto provider (ring): installed explicitly at startup before
+# any reqwest Client is built (reqwest uses rustls-no-provider).
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+futures.workspace = true
+tar.workspace = true
+flate2.workspace = true
+
+[dev-dependencies]
+acp-runner-drivers.workspace = true
+acp-runner-client.workspace = true
+tempfile.workspace = true
+serde_yaml.workspace = true

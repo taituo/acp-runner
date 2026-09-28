@@ -1,0 +1,44 @@
+# OpenAI Codex via the pinned codex-acp adapter, authenticated with an enrolled ChatGPT
+# login (acp-runnerctl auth enroll codex personal-1). No OPENAI_API_KEY anywhere.
+apiVersion: acp-runner.dev/v1alpha1
+kind: ACPRunnerClass
+metadata:
+  name: codex-default
+  namespace: acp-agents
+spec:
+  driver: codex
+  driverConfig:
+    # INITIAL_AGENT_MODE for codex-acp: read-only | agent | agent-full-access.
+    # agent-full-access = approvals never + sandbox danger-full-access: the pod (and gVisor,
+    # if enabled) is the isolation boundary; Codex' own Linux sandbox generally cannot run
+    # unprivileged inside a container.
+    mode: agent-full-access
+    # model: gpt-5.5-codex          # optional, passed as CODEX_CONFIG {"model": ...}
+    # reasoningEffort: medium
+  image: acp-runner/runner:dev
+  imagePullPolicy: IfNotPresent
+  # runtimeClassName: gvisor
+  # Persistent subscription credentials require the allowlisting egress proxy (the controller
+  # rejects egress.mode: direct for credentialed classes). Deploy deploy/egress-proxy/ first.
+  egress:
+    mode: proxy
+    httpsProxy: http://acp-egress-proxy.acp-egress.svc:3128
+    noProxy: acp-runner-ingest.acp-runner-system.svc,localhost,127.0.0.1
+  credentials:
+    provider: codex
+    profiles: [personal-1]           # each profile = one independently authorized login
+  resources:
+    requests: {cpu: 500m, memory: 1Gi}
+    limits: {cpu: "2", memory: 4Gi}  # memory-backed volumes count against this limit
+  workspace:
+    medium: Memory
+    sizeLimit: 2Gi
+    tmpSizeLimit: 512Mi
+    homeSizeLimit: 512Mi
+    maxPatchBytes: 8388608
+  timeouts:
+    hardSeconds: 3600
+    noProgressSeconds: 600
+    graceSeconds: 20
+    heartbeatSeconds: 10
+    startupSeconds: 300

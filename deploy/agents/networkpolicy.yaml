@@ -1,0 +1,118 @@
+# Agent sandbox network model (Kubernetes NetworkPolicy = L3/L4 only).
+#
+# Both containers of an attempt pod share the pod network namespace. runnerd needs the ingest
+# API; agentd (the CLI) needs provider/repo egress. The pod is labelled
+# `acp-runner.dev/egress: direct|proxy` (set by the controller from the runner class'
+# egress.mode); the two egress policies below select on that label.
+#
+# What this guarantees (with a NetworkPolicy-enforcing CNI — kindnet >= kind v0.33, Calico,
+# Cilium, GKE Dataplane V2, ...):
+#   * no ingress to agent pods at all;
+#   * egress is always allowed to cluster DNS and the acp-runner ingest API;
+#   * egress.mode: direct  -> additionally TCP 443/80 to any address OUTSIDE the
+#     non-public ranges below (no hostname policy: any public endpoint is reachable).
+#     The except list mirrors the proxy's `is_public` classification (V7), including
+#     IPv4-mapped-into-IPv6 tunnel ranges: a direct pod must not reach through NAT64/6to4
+#     what the proxy would refuse.
+#   * egress.mode: proxy   -> additionally ONLY the acp-egress-proxy (TCP 3128). The pod
+#     cannot open any other outbound connection; the CLI reaches providers/repos only through
+#     the allowlisting proxy (deploy/egress-proxy/). Runner classes with credentials require
+#     this mode (the controller rejects the run otherwise).
+#
+# What it does NOT guarantee:
+#   * NetworkPolicy cannot filter by hostname/URL: in `direct` mode an agent can reach ANY
+#     public HTTPS endpoint. Use `proxy` mode for a hostname allowlist.
+#   * If your API server endpoint is a PUBLIC address, add it to the `except` list. Agent pods
+#     carry no service-account token and the agent SA has no RBAC, so the API server would
+#     still reject them, but it would be reachable in `direct` mode.
+#   * Adjust the except list if your pod/service/node CIDRs are outside RFC1918/CGNAT.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: acp-agent-default-deny
+  namespace: acp-agents
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: acp-runner-agent}
+  policyTypes: [Ingress, Egress]
+---
+# Common egress: cluster DNS + the controller ingest API (both egress modes).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: acp-agent-egress-common
+  namespace: acp-agents
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: acp-runner-agent}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+          podSelector: {matchLabels: {k8s-app: kube-dns}}
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: acp-runner-system}}
+          podSelector: {matchLabels: {app.kubernetes.io/name: acp-runner-controller}}
+      ports:
+        - {protocol: TCP, port: 8081}
+---
+# egress.mode: direct — unrestricted public HTTPS/HTTP.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: acp-agent-egress-direct
+  namespace: acp-agents
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: acp-runner-agent, acp-runner.dev/egress: direct}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 100.64.0.0/10
+              - 169.254.0.0/16
+              - 127.0.0.0/8
+              - 0.0.0.0/8
+              - 192.0.0.0/24
+              - 192.88.99.0/24
+              - 198.18.0.0/15
+              - 224.0.0.0/4
+              - 240.0.0.0/4
+        - ipBlock:
+            cidr: ::/0
+            except:
+              - fc00::/7
+              - fe80::/10
+              - fec0::/10
+              - ::1/128
+              - 64:ff9b::/96
+              - 64:ff9b:1::/48
+              - 2002::/16
+      ports:
+        - {protocol: TCP, port: 443}
+        - {protocol: TCP, port: 80}
+---
+# egress.mode: proxy — only the allowlisting egress proxy.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: acp-agent-egress-proxy
+  namespace: acp-agents
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: acp-runner-agent, acp-runner.dev/egress: proxy}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: acp-egress}}
+          podSelector: {matchLabels: {app.kubernetes.io/name: acp-egress-proxy}}
+      ports:
+        - {protocol: TCP, port: 3128}

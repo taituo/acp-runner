@@ -1,0 +1,19 @@
+[package]
+name = "acp-runner-ipc"
+description = "Local runnerd <-> agentd protocol: length-framed JSON over a Unix domain socket (Launch, AgentEvent, Cancel, Exit)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+acp-runner-core.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

@@ -1,0 +1,61 @@
+# DEVELOPMENT PostgreSQL (single pod, ephemeral storage). Use a managed/HA PostgreSQL with
+# TLS and backups in production and point the acp-runner-db Secret at it.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: acp-runner-db
+  namespace: acp-runner-system
+type: Opaque
+stringData:
+  password: acp-runner-dev-password
+  url: postgres://acp:acp-runner-dev-password@acp-runner-postgres.acp-runner-system.svc:5432/acp_runner
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: acp-runner-postgres
+  namespace: acp-runner-system
+spec:
+  serviceName: acp-runner-postgres
+  replicas: 1
+  selector: {matchLabels: {app.kubernetes.io/name: acp-runner-postgres}}
+  template:
+    metadata: {labels: {app.kubernetes.io/name: acp-runner-postgres}}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70
+        runAsGroup: 70
+        fsGroup: 70
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: postgres
+          image: docker.io/library/postgres:16-alpine
+          env:
+            - {name: POSTGRES_USER, value: acp}
+            - {name: POSTGRES_DB, value: acp_runner}
+            - name: POSTGRES_PASSWORD
+              valueFrom: {secretKeyRef: {name: acp-runner-db, key: password}}
+            - {name: PGDATA, value: /var/lib/postgresql/data/pgdata}
+          ports: [{containerPort: 5432, name: postgres}]
+          readinessProbe:
+            exec: {command: ["pg_isready", "-U", "acp", "-d", "acp_runner"]}
+            periodSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/postgresql/data}
+            - {name: run, mountPath: /var/run/postgresql}
+      volumes:
+        - {name: data, emptyDir: {}}
+        - {name: run, emptyDir: {}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: acp-runner-postgres
+  namespace: acp-runner-system
+spec:
+  selector: {app.kubernetes.io/name: acp-runner-postgres}
+  ports: [{port: 5432, targetPort: postgres}]

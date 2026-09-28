@@ -1,0 +1,45 @@
+[package]
+name = "acp-runner-engine"
+description = "Backend-agnostic run engine: attempt planning, supervision, timeouts, retry/fallback, resume capsules, ingest API."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+acp-runner-core.workspace = true
+acp-runner-ipc.workspace = true
+acp-runner-client.workspace = true
+acp-runner-journal.workspace = true
+tokio.workspace = true
+async-trait.workspace = true
+axum.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+sha2.workspace = true
+hex.workspace = true
+base64.workspace = true
+prometheus-client.workspace = true
+# rustls-no-provider: the controller refreshes Codex tokens over TLS
+# (https://auth.openai.com); the workspace reqwest has no TLS backend by default.
+# NOTE: must NOT enable a second crypto provider — the tree already uses `ring`
+# via kube; adding e.g. aws-lc-rs panics at runtime (ambiguous CryptoProvider).
+reqwest = { workspace = true, features = ["rustls-no-provider"] }
+nix.workspace = true
+anyhow.workspace = true
+futures.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+sqlx.workspace = true
+tar.workspace = true
+flate2.workspace = true
+tracing-subscriber.workspace = true
+# Shared rustls crypto provider (ring) for unit tests that build reqwest
+# clients (reqwest is rustls-no-provider; this graph has no kube-supplied ring).
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }

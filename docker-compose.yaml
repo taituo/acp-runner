@@ -1,0 +1,19 @@
+# Local PostgreSQL for development and PostgreSQL-backed tests.
+#   docker compose up -d postgres
+#   export DATABASE_URL=postgres://acp:acp@127.0.0.1:55432/acp_runner
+#   export ACP_TEST_DATABASE_URL=postgres://acp:acp@127.0.0.1:55432/postgres
+services:
+  postgres:
+    image: docker.io/library/postgres:16-alpine
+    environment:
+      POSTGRES_USER: acp
+      POSTGRES_PASSWORD: acp
+      POSTGRES_DB: acp_runner
+    ports:
+      - "127.0.0.1:55432:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "acp"]
+      interval: 2s
+      retries: 30
+    tmpfs:
+      - /var/lib/postgresql/data

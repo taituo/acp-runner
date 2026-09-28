@@ -1,0 +1,18 @@
+# Hung agent: after noProgressSeconds without agent events the controller answers runnerd's
+# heartbeat with a cancel directive; runnerd sends Cancel to agentd (graceful session/cancel
+# -> SIGTERM -> SIGKILL of the CLI), the attempt is TimedOut, the sandbox is deleted, then the
+# run falls back to fake-fix.
+apiVersion: acp-runner.dev/v1alpha1
+kind: ACPRun
+metadata:
+  name: fake-hang-1
+  namespace: acp-agents
+spec:
+  taskId: demo-hang
+  runnerClassName: fake-hang
+  fallbackRunnerClassNames: [fake-fix]
+  repository:
+    url: file:///opt/acp-runner/fixtures/buggy-repo.git
+    revision: dab04cf7a90ba80a2e188cd4864c71abf7b39a74
+  prompt:
+    text: Fix add.sh so that `sh test.sh` prints PASS.

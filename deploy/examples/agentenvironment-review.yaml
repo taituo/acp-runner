@@ -1,0 +1,47 @@
+# Review = a short branch of an implementation snapshot. No new primitive: the reviewer gets
+# the implementation's cumulative snapshot S1 as a workspace overlay, a reviewer agent/config,
+# a short lifetime, and no output artifact (findings come back over ACP). A fixer would be the
+# same branch with `output.artifact: patch` — its final artifact is again cumulative against
+# the original base, with parentArtifactId = S1.
+apiVersion: acp-runner.dev/v1alpha1
+kind: AgentEnvironment
+metadata:
+  name: review-123
+  namespace: acp-agents
+spec:
+  externalRef: review-123
+  harness:
+    name: claude
+    version: "2.1.274"
+    config: {permissionMode: plan}
+  workspace:
+    source:
+      type: git
+      url: https://github.com/example/monorepo.git
+      revision: 0123456789abcdef0123456789abcdef01234567
+    overlays:
+      - type: patchArtifact
+        artifactId: 0192f5f0-0000-7000-8000-000000000001   # snapshot S1 of the implementer
+    workdir: packages/backend
+  credentials:
+    profile: claude-max-1
+  agents: [backend-reviewer]
+  skills: [rust, postgres, company-review]
+  configs: [company-claude-project]
+  bootstrap:
+    files:
+      - bundle: reviewer-config
+        target: {root: workspace, path: packages/backend/CLAUDE.md}
+        artifactPolicy: exclude
+    exec:
+      - command: /opt/harness/bin/setup
+        args: ["--profile", "coding"]
+        cwd: packages/backend
+  lifetime:
+    idleSeconds: 600
+    maxSeconds: 1800
+  output:
+    artifact: none
+  egress:
+    mode: proxy
+    httpsProxy: http://acp-egress-proxy.acp-egress.svc:3128

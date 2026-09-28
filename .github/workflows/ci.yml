@@ -1,0 +1,72 @@
+# Deterministic CI: no provider accounts. Live smoke tests are opt-in (see README).
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      kind_e2e:
+        description: Run the KIND end-to-end job
+        type: boolean
+        default: false
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: {POSTGRES_USER: acp, POSTGRES_PASSWORD: acp, POSTGRES_DB: acp_runner}
+        ports: ["55432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U acp" --health-interval 2s --health-retries 30
+    env:
+      ACP_TEST_DATABASE_URL: postgres://acp:acp@127.0.0.1:55432/postgres
+      ACP_REQUIRE_DB_TESTS: 1
+      ENVTEST_VERSION: v1.37.0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.95.0
+        with: {components: "rustfmt, clippy"}
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - uses: Swatinem/rust-cache@v2
+      - name: envtest control plane
+        run: |
+          curl -sSL -o envtest.tgz "https://github.com/kubernetes-sigs/controller-tools/releases/download/envtest-${ENVTEST_VERSION}/envtest-${ENVTEST_VERSION}-linux-amd64.tar.gz"
+          mkdir -p .cache/envtest && tar xzf envtest.tgz -C .cache/envtest
+          BIN=$(dirname "$(find .cache/envtest -name kube-apiserver)")
+          echo "ACP_E2E_KUBECONFIG=$(ENVTEST_BIN=$BIN scripts/envtest-up.sh)" >> "$GITHUB_ENV"
+          curl -sSL -o .cache/agent-sandbox.yaml https://github.com/kubernetes-sigs/agent-sandbox/releases/download/v1.0.4/sandbox-with-extensions.yaml
+          echo "ACP_E2E_AGENT_SANDBOX_CRDS=$PWD/.cache/agent-sandbox.yaml" >> "$GITHUB_ENV"
+      - name: fmt, clippy, unit + integration + envtest e2e
+        run: scripts/test.sh
+      - name: security audit (crypto/HTTP surface)
+        run: |
+          cargo install cargo-audit --locked -q || true
+          cargo audit
+      - name: driver compatibility (fake + real codex adapter without credentials)
+        run: scripts/compat.sh --targets fake-acp,fake-claude,codex-noauth
+
+  images:
+    runs-on: ubuntu-24.04
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: build images
+        run: scripts/build-images.sh
+      - name: in-image contract smoke
+        run: scripts/compat-image.sh acp-runner/runner:dev fake-acp,codex-noauth
+
+  kind-e2e:
+    if: github.event_name == 'workflow_dispatch' && inputs.kind_e2e
+    runs-on: ubuntu-24.04
+    needs: images
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.95.0
+      - uses: helm/kind-action@v1
+        with: {version: v0.33.0, install_only: true}
+      - run: scripts/e2e-kind.sh
